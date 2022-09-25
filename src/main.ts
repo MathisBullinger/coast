@@ -23,62 +23,110 @@ const minSize = 100000
   applyViewBox()
 }
 
-const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-path.setAttribute('d', `M 0 ${minSize / 2} l ${minSize} 0`)
-path.setAttribute('stroke', '#000')
-path.setAttribute('vector-effect', 'non-scaling-stroke')
-svg.appendChild(path)
+class Path {
+  private readonly svgPath: SVGPathElement
+  public segments = 0
 
-const toSvgPath = (coords: vec.Vec[]) =>
-  'M ' +
-  coords
-    .reduceRight(
-      (a, c, i) =>
-        i === 0
-          ? [c, ...a]
-          : [
-              [c[0] - coords[i - 1][0], c[1] - coords[i - 1][1]] as vec.Vec,
-              ...a,
-            ],
-      [] as vec.Vec[]
+  private coords: { stringIndex: number; x: number; y: number }[] = []
+  private svgD = ''
+
+  constructor(points: vec.Vec[]) {
+    this.svgPath = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'path'
     )
-    .map((point) => point.join(' '))
-    .join(' l ')
-
-const segment = () => {
-  segments *= 2
-
-  let coords = path
-    .getAttribute('d')!
-    .slice(2)
-    .split(' l ')
-    .map((v) => v.split(' ').map((v) => parseFloat(v)) as vec.Vec)
-
-  for (let i = 1; i < coords.length; i++) {
-    coords[i][0] += coords[i - 1][0]
-    coords[i][1] += coords[i - 1][1]
+    this.svgPath.setAttribute('stroke', '#000')
+    this.svgPath.setAttribute('vector-effect', 'non-scaling-stroke')
+    const { svgD, coords } = Path.getSvgPath(points)
+    this.coords = coords
+    this.svgD = svgD
+    this.svgPath.setAttribute('d', svgD)
+    svg.appendChild(this.svgPath)
+    this.segments = points.length
   }
 
-  coords = coords.flatMap((p, i) => {
-    if (i === coords.length - 1) return [p]
+  public get length() {
+    return this.coords.length
+  }
 
-    const v: vec.Vec = [
-      p[0] + (coords[i + 1][0] - p[0]) / 2,
-      p[1] + (coords[i + 1][1] - p[1]) / 2,
-    ]
+  public at(index: number): vec.Vec {
+    return [this.coords[index].x, this.coords[index].y]
+  }
 
-    const offsetMag = Math.random() ** 2 * 0.5 * vec.mag(vec.sub(v, p))
-    const offset = vec.rotate([0, offsetMag], Math.random() * 2 * Math.PI)
+  public insert(index: number, [x, y]: vec.Vec) {
+    const svgDSeg = `${index ? 'L' : 'M'} ${x} ${y} `
 
-    return [p, vec.add(v, offset)]
-  })
+    if (index >= this.coords.length) {
+      this.coords.push({
+        x,
+        y,
+        stringIndex: this.svgD.length,
+      })
+      this.svgD = `${svgDSeg}L ${this.svgD.slice(2)}`
+    } else if (index === 0) {
+      this.coords.unshift({ x, y, stringIndex: 0 })
+      this.svgD += svgDSeg
+    } else {
+      const stringIndex = this.coords[index].stringIndex
+      this.coords = [
+        ...this.coords.slice(0, index),
+        { x, y, stringIndex },
+        ...this.coords.slice(index),
+      ]
+      this.svgD =
+        this.svgD.slice(0, stringIndex) + svgDSeg + this.svgD.slice(stringIndex)
+    }
 
-  path.setAttribute('d', toSvgPath(coords))
+    this.svgPath.setAttribute('d', this.svgD)
+
+    for (let i = index + 1; i < this.coords.length; i++) {
+      this.coords[i].stringIndex += svgDSeg.length
+    }
+  }
+
+  private static getSvgPath(points: vec.Vec[]) {
+    let svgD = ''
+    let coords: Path['coords'] = []
+    if (!points.length) return { svgD, coords }
+
+    svgD = `M ${points[0][0]} ${points[0][1]} `
+    coords = [{ x: points[0][0], y: points[0][1], stringIndex: 0 }]
+
+    for (let i = 1; i < points.length; i++) {
+      const [x, y] = points[i]
+      coords.push({ x, y, stringIndex: svgD.length })
+      svgD += `L ${x} ${y} `
+    }
+
+    return { svgD, coords }
+  }
 }
 
-let segments = 1
-for (let i = 0; i < 7; i++) segment()
-const intitialSegments = segments
+const path = new Path([
+  [0, minSize / 2],
+  [minSize, minSize / 2],
+])
+
+const segment = (path: Path) => {
+  path.segments *= 2
+  console.log(path.segments)
+
+  for (let i = 0; i < path.length - 1; i += 2) {
+    const newPoint: vec.Vec = [
+      path.at(i)[0] + (path.at(i + 1)[0] - path.at(i)[0]) / 2,
+      path.at(i)[1] + (path.at(i + 1)[1] - path.at(i)[1]) / 2,
+    ]
+
+    const offsetScale = Math.random() ** 2 * 0.5
+    const offsetAngle = Math.random() * 2 * Math.PI
+    const offset = vec.mul(vec.sub(path.at(i + 1), newPoint), offsetScale)
+
+    path.insert(i + 1, vec.add(newPoint, vec.rotate(offset, offsetAngle)))
+  }
+}
+
+for (let i = 0; i < 6; i++) segment(path)
+const intitialSegments = path.segments
 
 type ViewPort = { x: number; y: number; w: number; h: number }
 
@@ -103,7 +151,7 @@ svg.addEventListener('wheel', (e) => {
     Math.log2(2 * (minSize / Math.min(viewBox.w, viewBox.h)))
   )
 
-  const act = Math.log2(2 * (segments / intitialSegments))
+  const act = Math.log2(2 * (path.segments / intitialSegments))
 
-  if (lvl > act) segment()
+  if (lvl > act) segment(path)
 })

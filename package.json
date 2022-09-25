@@ -1,0 +1,11 @@
+{
+  "name": "coast",
+  "scripts": {
+    "start": "parcel index.html"
+  },
+  "author": "Mathis Bullinger",
+  "license": "ISC",
+  "devDependencies": {
+    "parcel": "^2.7.0"
+  }
+}

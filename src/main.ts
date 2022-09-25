@@ -11,8 +11,8 @@ const applyViewBox = () => {
   )
 }
 
+const minSize = 100000
 {
-  const minSize = 1000
   viewBox.w =
     (svg.clientWidth / Math.min(svg.clientWidth, svg.clientHeight)) * minSize
   viewBox.h =
@@ -24,7 +24,7 @@ const applyViewBox = () => {
 }
 
 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-path.setAttribute('d', `M 0 500 l 1000 0`)
+path.setAttribute('d', `M 0 ${minSize / 2} l ${minSize} 0`)
 path.setAttribute('stroke', '#000')
 path.setAttribute('vector-effect', 'non-scaling-stroke')
 svg.appendChild(path)
@@ -46,11 +46,13 @@ const toSvgPath = (coords: vec.Vec[]) =>
     .join(' l ')
 
 const segment = () => {
+  segments *= 2
+
   let coords = path
     .getAttribute('d')!
     .slice(2)
     .split(' l ')
-    .map((v) => v.split(' ').map((v) => parseInt(v)) as vec.Vec)
+    .map((v) => v.split(' ').map((v) => parseFloat(v)) as vec.Vec)
 
   for (let i = 1; i < coords.length; i++) {
     coords[i][0] += coords[i - 1][0]
@@ -65,17 +67,18 @@ const segment = () => {
       p[1] + (coords[i + 1][1] - p[1]) / 2,
     ]
 
-    const offsetMag = Math.random() ** 2 * vec.mag(vec.sub(v, p))
+    const offsetMag = Math.random() ** 2 * 0.5 * vec.mag(vec.sub(v, p))
     const offset = vec.rotate([0, offsetMag], Math.random() * 2 * Math.PI)
+
     return [p, vec.add(v, offset)]
   })
 
   path.setAttribute('d', toSvgPath(coords))
 }
 
-segment()
-segment()
-segment()
+let segments = 1
+for (let i = 0; i < 7; i++) segment()
+const intitialSegments = segments
 
 type ViewPort = { x: number; y: number; w: number; h: number }
 
@@ -95,4 +98,12 @@ svg.addEventListener('wheel', (e) => {
 
   viewBox = newViewBox
   applyViewBox()
+
+  const lvl = Math.floor(
+    Math.log2(2 * (minSize / Math.min(viewBox.w, viewBox.h)))
+  )
+
+  const act = Math.log2(2 * (segments / intitialSegments))
+
+  if (lvl > act) segment()
 })

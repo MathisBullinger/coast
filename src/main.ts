@@ -1,3 +1,5 @@
+import * as vec from './vec'
+
 const svg = document.querySelector('svg')!
 
 let viewBox: ViewPort = { x: 0, y: 0, w: 0, h: 0 }
@@ -27,9 +29,55 @@ path.setAttribute('stroke', '#000')
 path.setAttribute('vector-effect', 'non-scaling-stroke')
 svg.appendChild(path)
 
+const toSvgPath = (coords: vec.Vec[]) =>
+  'M ' +
+  coords
+    .reduceRight(
+      (a, c, i) =>
+        i === 0
+          ? [c, ...a]
+          : [
+              [c[0] - coords[i - 1][0], c[1] - coords[i - 1][1]] as vec.Vec,
+              ...a,
+            ],
+      [] as vec.Vec[]
+    )
+    .map((point) => point.join(' '))
+    .join(' l ')
+
+const segment = () => {
+  let coords = path
+    .getAttribute('d')!
+    .slice(2)
+    .split(' l ')
+    .map((v) => v.split(' ').map((v) => parseInt(v)) as vec.Vec)
+
+  for (let i = 1; i < coords.length; i++) {
+    coords[i][0] += coords[i - 1][0]
+    coords[i][1] += coords[i - 1][1]
+  }
+
+  coords = coords.flatMap((p, i) => {
+    if (i === coords.length - 1) return [p]
+
+    const v: vec.Vec = [
+      p[0] + (coords[i + 1][0] - p[0]) / 2,
+      p[1] + (coords[i + 1][1] - p[1]) / 2,
+    ]
+
+    const offsetMag = Math.random() ** 2 * vec.mag(vec.sub(v, p))
+    const offset = vec.rotate([0, offsetMag], Math.random() * 2 * Math.PI)
+    return [p, vec.add(v, offset)]
+  })
+
+  path.setAttribute('d', toSvgPath(coords))
+}
+
+segment()
+segment()
+segment()
+
 type ViewPort = { x: number; y: number; w: number; h: number }
-type Point = [x: number, y: number]
-type Path = Point[]
 
 svg.addEventListener('wheel', (e) => {
   e.preventDefault()

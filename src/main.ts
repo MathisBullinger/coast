@@ -109,7 +109,6 @@ const path = new Path([
 
 const segment = (path: Path) => {
   path.segments *= 2
-  console.log(path.segments)
 
   for (let i = 0; i < path.length - 1; i += 2) {
     const newPoint: vec.Vec = [
@@ -132,12 +131,39 @@ type ViewPort = { x: number; y: number; w: number; h: number }
 
 svg.addEventListener('wheel', (e) => {
   e.preventDefault()
-  if (!e.ctrlKey) return
+
+  if (!e.ctrlKey) {
+    return pan(e.deltaX / svg.clientWidth, e.deltaY / svg.clientHeight)
+  }
 
   const x = e.clientX / svg.clientWidth
   const y = e.clientY / svg.clientHeight
   const m = 1 + e.deltaY / 500
 
+  zoom(m, [x, y])
+})
+
+svg.addEventListener('pointerdown', () => {
+  const onMove = ({ movementX: x, movementY: y }: PointerEvent) => {
+    pan(-x / svg.clientWidth, -y / svg.clientHeight)
+  }
+
+  svg.addEventListener('pointermove', onMove)
+
+  window.addEventListener(
+    'pointerup',
+    () => svg.removeEventListener('pointermove', onMove),
+    { once: true }
+  )
+})
+
+const pan = (x: number, y: number) => {
+  viewBox.x += viewBox.w * x
+  viewBox.y += viewBox.h * y
+  applyViewBox()
+}
+
+const zoom = (m: number, [x, y]: vec.Vec) => {
   const newViewBox = { ...viewBox }
   newViewBox.w *= m
   newViewBox.h *= m
@@ -154,4 +180,4 @@ svg.addEventListener('wheel', (e) => {
   const act = Math.log2(2 * (path.segments / intitialSegments))
 
   if (lvl > act) segment(path)
-})
+}

@@ -1,13 +1,21 @@
-import { Vec } from './vec'
+import type { Vec } from './vec'
+import type ViewPort from './viewport'
 
 export default class Path {
   private readonly svgPath: SVGPathElement
-  public segments = 0
 
   private coords: { stringIndex: number; x: number; y: number }[] = []
   private svgD = ''
+  private initialVmin = this.viewport.vMin
+  private readonly initialSegmentCount: number
 
-  constructor(private readonly svg: SVGElement, points: Vec[]) {
+  constructor(
+    svg: SVGElement,
+    private readonly viewport: ViewPort,
+    points: Vec[],
+    private readonly interpolationFunction: (a: Vec, b: Vec) => Vec,
+    segmentLevels = 1
+  ) {
     this.svgPath = document.createElementNS(
       'http://www.w3.org/2000/svg',
       'path'
@@ -19,7 +27,23 @@ export default class Path {
     this.svgD = svgD
     this.svgPath.setAttribute('d', svgD)
     svg.appendChild(this.svgPath)
-    this.segments = points.length
+
+    for (let i = 1; i < segmentLevels; i++) this.addSegments()
+    this.initialSegmentCount = this.coords.length - 1
+
+    this.viewport.addEventListener('resize', ({ vMin }) => {
+      const lvl = Math.floor(Math.log2(2 * (this.initialVmin / viewport.vMin)))
+      const act = Math.log2(
+        2 * ((this.coords.length - 1) / this.initialSegmentCount)
+      )
+      if (lvl > act) this.addSegments()
+    })
+  }
+
+  private addSegments() {
+    for (let i = 0; i < this.length - 1; i += 2) {
+      this.insert(i + 1, this.interpolationFunction(this.at(i), this.at(i + 1)))
+    }
   }
 
   public get length() {

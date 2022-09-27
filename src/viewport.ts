@@ -1,6 +1,10 @@
 import { Vec } from './vec'
 
-export default class ViewPort {
+type EventMap = {
+  resize: ViewPort
+}
+
+export default class ViewPort implements EventEmitter<EventMap> {
   private x: number
   private y: number
   private w: number
@@ -43,8 +47,6 @@ export default class ViewPort {
     this.x += x
     this.y += y
     this.setViewbox()
-
-    console.log(this.x / this.width, this.y / this.height)
   }
 
   public zoom(m: number, [x, y]: Vec = [0.5, 0.5]) {
@@ -53,6 +55,16 @@ export default class ViewPort {
     this.w *= m
     this.h *= m
     this.setViewbox()
+    this.eventListeners.resize?.forEach((listener) => listener(this))
+  }
+
+  private eventListeners: { [K in keyof EventMap]?: any[] } = {}
+
+  public addEventListener = <T extends keyof EventMap>(
+    event: T,
+    listener: (event: EventMap[T]) => void
+  ) => {
+    ;(this.eventListeners[event] ??= [] as any[]).push(listener)
   }
 
   private setViewbox() {
@@ -73,3 +85,12 @@ export default class ViewPort {
     this.setViewbox()
   }
 }
+
+type EventEmitter<T extends Record<string, any>> = {
+  addEventListener: AddEventListener<T>
+}
+
+type AddEventListener<T extends Record<string, any>> = <K extends keyof T>(
+  event: K,
+  listener: (event: T[K]) => void
+) => void

@@ -7,30 +7,25 @@ const svg = document.querySelector('svg')!
 const initialVmin = 100000
 const viewport = new Viewport(svg, initialVmin)
 
-const path = new Path(svg, [
-  [-viewport.vMin / 2, 0],
-  [viewport.vMin / 2, 0],
-])
-
-const segment = (path: Path) => {
-  path.segments *= 2
-
-  for (let i = 0; i < path.length - 1; i += 2) {
-    const newPoint: vec.Vec = [
-      path.at(i)[0] + (path.at(i + 1)[0] - path.at(i)[0]) / 2,
-      path.at(i)[1] + (path.at(i + 1)[1] - path.at(i)[1]) / 2,
-    ]
+new Path(
+  svg,
+  viewport,
+  [
+    [-viewport.vMin / 2, 0],
+    [viewport.vMin / 2, 0],
+  ],
+  (a, b) => {
+    const half = vec.mul(vec.sub(b, a), 0.5)
+    const c = vec.add(a, half)
 
     const offsetScale = Math.random() ** 2 * 0.5
     const offsetAngle = Math.random() * 2 * Math.PI
-    const offset = vec.mul(vec.sub(path.at(i + 1), newPoint), offsetScale)
+    const offset = vec.rotate(vec.mul(half, offsetScale), offsetAngle)
 
-    path.insert(i + 1, vec.add(newPoint, vec.rotate(offset, offsetAngle)))
-  }
-}
-
-for (let i = 0; i < 6; i++) segment(path)
-const intitialSegments = path.segments
+    return vec.add(c, offset)
+  },
+  6
+)
 
 svg.addEventListener('wheel', (e) => {
   e.preventDefault()
@@ -66,8 +61,4 @@ const pan = (x: number, y: number) => {
 
 const zoom = (m: number, target: vec.Vec) => {
   viewport.zoom(m, target)
-
-  const lvl = Math.floor(Math.log2(2 * (initialVmin / viewport.vMin)))
-  const act = Math.log2(2 * (path.segments / intitialSegments))
-  if (lvl > act) segment(path)
 }

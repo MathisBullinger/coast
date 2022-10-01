@@ -1,31 +1,34 @@
 import * as vec from './vec'
 import Viewport from './viewport'
 import Path from './path'
+import { mulberry32 } from './random'
 
 const svg = document.querySelector('svg')!
 
 const initialVmin = 100000
 const viewport = new Viewport(svg, initialVmin)
 
-const path = new Path(
+const random = mulberry32(1)
+
+const path = new Path({
   svg,
   viewport,
-  [
+  points: [
     [-viewport.vMin / 2, 0],
     [viewport.vMin / 2, 0],
   ],
-  (a, b, lvl) => {
+  interpolationFunction: (a, b, lvl) => {
     const half = vec.mul(vec.sub(b, a), 0.5)
     const c = vec.add(a, half)
 
-    const offsetScale = Math.random() ** 2 * 0.5
+    const offsetScale = random.next().value ** 2 * 0.5
     const offsetAngle = Math.PI * (lvl % 2 ? 0.5 : -0.5)
     const offset = vec.rotate(vec.mul(half, offsetScale), offsetAngle)
 
     return vec.add(c, offset)
   },
-  1
-)
+  autoSegment: false,
+})
 
 svg.addEventListener('click', () => path.addSegments())
 

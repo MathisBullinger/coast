@@ -1,25 +1,39 @@
 import type { Vec } from './vec'
 import type ViewPort from './viewport'
 
+type Opts = {
+  svg: SVGElement
+  viewport: ViewPort
+  points: Vec[]
+  interpolationFunction: (a: Vec, b: Vec, lvl: number) => Vec
+  segmentLevels?: number
+  showMarkers?: boolean
+  autoSegment?: boolean
+}
+
 export default class Path {
   private readonly svgPath: SVGPathElement
 
+  private readonly interpolationFunction: Opts['interpolationFunction']
+  private readonly viewport: Opts['viewport']
   private coords: { stringIndex: number; x: number; y: number }[] = []
   private svgD = ''
-  private initialVmin = this.viewport.vMin
+  private initialVmin: number
   private readonly initialSegmentCount: number
 
-  constructor(
-    svg: SVGElement,
-    private readonly viewport: ViewPort,
-    points: Vec[],
-    private readonly interpolationFunction: (
-      a: Vec,
-      b: Vec,
-      lvl: number
-    ) => Vec,
-    segmentLevels = 1
-  ) {
+  constructor({
+    svg,
+    viewport,
+    points,
+    interpolationFunction,
+    segmentLevels = 1,
+    showMarkers = false,
+    autoSegment = true,
+  }: Opts) {
+    this.interpolationFunction = interpolationFunction
+    this.viewport = viewport
+    this.initialVmin = viewport.vMin
+
     this.svgPath = document.createElementNS(
       'http://www.w3.org/2000/svg',
       'path'
@@ -27,9 +41,11 @@ export default class Path {
     this.svgPath.setAttribute('stroke', '#000')
     this.svgPath.setAttribute('vector-effect', 'non-scaling-stroke')
 
-    this.svgPath.setAttribute('marker-start', 'url(#dot)')
-    this.svgPath.setAttribute('marker-mid', 'url(#dot)')
-    this.svgPath.setAttribute('marker-end', 'url(#dot)')
+    if (showMarkers) {
+      this.svgPath.setAttribute('marker-start', 'url(#dot)')
+      this.svgPath.setAttribute('marker-mid', 'url(#dot)')
+      this.svgPath.setAttribute('marker-end', 'url(#dot)')
+    }
 
     const { svgD, coords } = Path.getSvgPath(points)
     this.coords = coords
@@ -40,13 +56,17 @@ export default class Path {
     for (let i = 1; i < segmentLevels; i++) this.addSegments()
     this.initialSegmentCount = this.coords.length - 1
 
-    this.viewport.addEventListener('resize', ({ vMin }) => {
-      const lvl = Math.floor(Math.log2(2 * (this.initialVmin / viewport.vMin)))
-      const act = Math.log2(
-        2 * ((this.coords.length - 1) / this.initialSegmentCount)
-      )
-      if (lvl > act) this.addSegments()
-    })
+    if (autoSegment) {
+      this.viewport.addEventListener('resize', ({ vMin }) => {
+        const lvl = Math.floor(
+          Math.log2(2 * (this.initialVmin / viewport.vMin))
+        )
+        const act = Math.log2(
+          2 * ((this.coords.length - 1) / this.initialSegmentCount)
+        )
+        if (lvl > act) this.addSegments()
+      })
+    }
   }
 
   public addSegments() {

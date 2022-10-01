@@ -13,7 +13,11 @@ export default class Path {
     svg: SVGElement,
     private readonly viewport: ViewPort,
     points: Vec[],
-    private readonly interpolationFunction: (a: Vec, b: Vec) => Vec,
+    private readonly interpolationFunction: (
+      a: Vec,
+      b: Vec,
+      lvl: number
+    ) => Vec,
     segmentLevels = 1
   ) {
     this.svgPath = document.createElementNS(
@@ -22,6 +26,11 @@ export default class Path {
     )
     this.svgPath.setAttribute('stroke', '#000')
     this.svgPath.setAttribute('vector-effect', 'non-scaling-stroke')
+
+    this.svgPath.setAttribute('marker-start', 'url(#dot)')
+    this.svgPath.setAttribute('marker-mid', 'url(#dot)')
+    this.svgPath.setAttribute('marker-end', 'url(#dot)')
+
     const { svgD, coords } = Path.getSvgPath(points)
     this.coords = coords
     this.svgD = svgD
@@ -40,10 +49,17 @@ export default class Path {
     })
   }
 
-  private addSegments() {
+  public addSegments() {
+    const lvl = Math.log2(this.coords.length - 1)
+
     for (let i = 0; i < this.length - 1; i += 2) {
-      this.insert(i + 1, this.interpolationFunction(this.at(i), this.at(i + 1)))
+      this.insert(
+        i + 1,
+        this.interpolationFunction(this.at(i), this.at(i + 1), lvl)
+      )
     }
+
+    console.log(lvl + 1, this.coords.length)
   }
 
   public get length() {

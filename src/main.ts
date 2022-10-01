@@ -7,25 +7,27 @@ const svg = document.querySelector('svg')!
 const initialVmin = 100000
 const viewport = new Viewport(svg, initialVmin)
 
-new Path(
+const path = new Path(
   svg,
   viewport,
   [
     [-viewport.vMin / 2, 0],
     [viewport.vMin / 2, 0],
   ],
-  (a, b) => {
+  (a, b, lvl) => {
     const half = vec.mul(vec.sub(b, a), 0.5)
     const c = vec.add(a, half)
 
     const offsetScale = Math.random() ** 2 * 0.5
-    const offsetAngle = Math.random() * 2 * Math.PI
+    const offsetAngle = Math.PI * (lvl % 2 ? 0.5 : -0.5)
     const offset = vec.rotate(vec.mul(half, offsetScale), offsetAngle)
 
     return vec.add(c, offset)
   },
-  6
+  1
 )
+
+svg.addEventListener('click', () => path.addSegments())
 
 svg.addEventListener('wheel', (e) => {
   e.preventDefault()

@@ -1,7 +1,9 @@
 import { Vec } from './vec'
+import { Polygon, collide, getAxes } from './math'
 
 type EventMap = {
   resize: ViewPort
+  pan: ViewPort
 }
 
 export default class ViewPort implements EventEmitter<EventMap> {
@@ -43,10 +45,19 @@ export default class ViewPort implements EventEmitter<EventMap> {
     return this.h
   }
 
+  public get left() {
+    return this.x
+  }
+
+  public get top() {
+    return this.y
+  }
+
   public pan(x: number, y: number) {
     this.x += x
     this.y += y
     this.setViewbox()
+    this.eventListeners.pan?.forEach((listener) => listener(this))
   }
 
   public zoom(m: number, [x, y]: Vec = [0.5, 0.5]) {
@@ -56,6 +67,19 @@ export default class ViewPort implements EventEmitter<EventMap> {
     this.h *= m
     this.setViewbox()
     this.eventListeners.resize?.forEach((listener) => listener(this))
+  }
+
+  public intersects(polygon: Polygon): boolean {
+    return collide(this.aabb, polygon, [[0, 1], [1, 0], ...getAxes(polygon)])
+  }
+
+  public get aabb(): Polygon {
+    return [
+      [this.x, this.y],
+      [this.x, this.y + this.h],
+      [this.x + this.w, this.y + this.h],
+      [this.x + this.w, this.y],
+    ]
   }
 
   private eventListeners: { [K in keyof EventMap]?: any[] } = {}

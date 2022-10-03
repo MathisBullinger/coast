@@ -1,3 +1,4 @@
+import * as vec from './vec'
 import type { Vec } from './vec'
 import type ViewPort from './viewport'
 
@@ -67,6 +68,40 @@ export default class Path {
         if (lvl > act) this.addSegments()
       })
     }
+
+    this.viewport.addEventListener('pan', this.checkInViewport.bind(this))
+  }
+
+  private checkInViewport() {
+    const checkExpansion = (a: Vec, b: Vec, expandClockwise: boolean) => {
+      const dh = vec.mul(vec.sub(b, a), 0.5)
+      const c = vec.add(
+        vec.add(a, dh),
+        vec.rotate90Deg(vec.mul(dh, 0.5), expandClockwise)
+      )
+      const expansionArea = [a, b, c]
+      return this.viewport.intersects(expansionArea)
+    }
+
+    const testRec = (
+      first = 0,
+      last = this.coords.length - 1,
+      clockwise = false
+    ) => {
+      const collides = checkExpansion(
+        this.getCoord(first),
+        this.getCoord(last),
+        clockwise
+      )
+
+      console.log(collides)
+    }
+
+    testRec()
+  }
+
+  private getCoord(i: number): Vec {
+    return [this.coords[i].x, this.coords[i].y]
   }
 
   public addSegments() {

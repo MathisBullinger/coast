@@ -75,8 +75,9 @@ class Segment {
 
     if (hasChanged) {
       this.pathD = this.pathLeft + this.pathRight
-      if (this.lvl === 0)
+      if (this.lvl === 0) {
         this.pathD = `M ${this.points[0][0]} ${this.points[0][1]}` + this.pathD
+      }
     }
 
     return hasChanged
@@ -149,10 +150,8 @@ export default class Path {
   }
 
   private setSvgD() {
-    const svgD = this.root.pathD
-    console.log(svgD.length)
     for (const path of this.svgPaths) {
-      path.setAttribute('d', svgD)
+      path.setAttribute('d', this.root.pathD)
     }
   }
 
@@ -172,7 +171,7 @@ export default class Path {
 
   private fillDetail() {
     const maxLvl =
-      Math.floor(Math.log2(2 * (this.initialVmin / this.viewport.vMin))) * 6
+      Math.floor(Math.log2(2 * (this.initialVmin / this.viewport.vMin))) + 8
 
     if (this.root.segment(maxLvl)) {
       this.setSvgD()

@@ -10,8 +10,11 @@ const viewport = new Viewport(svg, initialVmin)
 
 const random = mulberry32(1)
 
+const svg2 = document.getElementById('svg2') as unknown as SVGElement
+svg2.setAttribute('viewBox', viewport.viewBox)
+
 const path = new Path({
-  svg,
+  svgs: [svg, svg2],
   viewport,
   points: [
     [-viewport.vMin / 2, 0],
@@ -28,6 +31,7 @@ const path = new Path({
     return vec.add(c, offset)
   },
   autoSegment: false,
+  showMarkers: true,
 })
 
 svg.addEventListener('click', () => path.addSegments())

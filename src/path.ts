@@ -3,7 +3,7 @@ import type { Vec } from './vec'
 import type ViewPort from './viewport'
 
 type Opts = {
-  svg: SVGElement
+  svgs: SVGElement[]
   viewport: ViewPort
   points: Vec[]
   interpolationFunction: (a: Vec, b: Vec, lvl: number) => Vec
@@ -13,7 +13,7 @@ type Opts = {
 }
 
 export default class Path {
-  private readonly svgPath: SVGPathElement
+  private readonly svgPaths: SVGPathElement[] = []
 
   private readonly interpolationFunction: Opts['interpolationFunction']
   private readonly viewport: Opts['viewport']
@@ -23,7 +23,7 @@ export default class Path {
   private readonly initialSegmentCount: number
 
   constructor({
-    svg,
+    svgs,
     viewport,
     points,
     interpolationFunction,
@@ -35,24 +35,16 @@ export default class Path {
     this.viewport = viewport
     this.initialVmin = viewport.vMin
 
-    this.svgPath = document.createElementNS(
-      'http://www.w3.org/2000/svg',
-      'path'
-    )
-    this.svgPath.setAttribute('stroke', '#000')
-    this.svgPath.setAttribute('vector-effect', 'non-scaling-stroke')
-
-    if (showMarkers) {
-      this.svgPath.setAttribute('marker-start', 'url(#dot)')
-      this.svgPath.setAttribute('marker-mid', 'url(#dot)')
-      this.svgPath.setAttribute('marker-end', 'url(#dot)')
-    }
-
     const { svgD, coords } = Path.getSvgPath(points)
     this.coords = coords
     this.svgD = svgD
-    this.svgPath.setAttribute('d', svgD)
-    svg.appendChild(this.svgPath)
+
+    for (let i = 0; i < svgs.length; i++) {
+      const path = this.createSvgPath(showMarkers)
+      path.setAttribute('d', svgD)
+      svgs[i].appendChild(path)
+      this.svgPaths.push(path)
+    }
 
     for (let i = 1; i < segmentLevels; i++) this.addSegments()
     this.initialSegmentCount = this.coords.length - 1
@@ -70,6 +62,22 @@ export default class Path {
     }
 
     this.viewport.addEventListener('pan', this.checkInViewport.bind(this))
+
+    this.fillDetail()
+  }
+
+  private createSvgPath(showMarkers = false) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('stroke', '#000')
+    path.setAttribute('vector-effect', 'non-scaling-stroke')
+
+    if (showMarkers) {
+      path.setAttribute('marker-start', 'url(#dot)')
+      path.setAttribute('marker-mid', 'url(#dot)')
+      path.setAttribute('marker-end', 'url(#dot)')
+    }
+
+    return path
   }
 
   private checkInViewport() {
@@ -94,10 +102,21 @@ export default class Path {
         clockwise
       )
 
-      console.log(collides)
+      // console.log(collides)
+      if (!collides) return false
+
+      console.log('collide', first, last)
     }
 
     testRec()
+  }
+
+  private fillDetail() {
+    // const lvl = Math.floor(
+    //   Math.log2(2 * (this.initialVmin / this.viewport.vMin))
+    // )
+    // const segments = 2 ** (lvl + 4)
+    // console.log(segments)
   }
 
   private getCoord(i: number): Vec {
@@ -149,7 +168,8 @@ export default class Path {
         this.svgD.slice(0, stringIndex) + svgDSeg + this.svgD.slice(stringIndex)
     }
 
-    this.svgPath.setAttribute('d', this.svgD)
+    const svgD = this.svgD
+    for (const path of this.svgPaths) path.setAttribute('d', svgD)
 
     for (let i = index + 1; i < this.coords.length; i++) {
       this.coords[i].stringIndex += svgDSeg.length

@@ -92,7 +92,11 @@ export default class ViewPort implements EventEmitter<EventMap> {
   }
 
   private setViewbox() {
-    this.svg.setAttribute('viewBox', `${this.x} ${this.y} ${this.w} ${this.h}`)
+    this.svg.setAttribute('viewBox', this.viewBox)
+  }
+
+  public get viewBox() {
+    return `${this.x} ${this.y} ${this.w} ${this.h}`
   }
 
   private onResize() {

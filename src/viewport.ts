@@ -53,6 +53,14 @@ export default class ViewPort implements EventEmitter<EventMap> {
     return this.y
   }
 
+  public get right() {
+    return this.x + this.w
+  }
+
+  public get bottom() {
+    return this.y + this.h
+  }
+
   public pan(x: number, y: number) {
     this.x += x
     this.y += y
@@ -67,6 +75,10 @@ export default class ViewPort implements EventEmitter<EventMap> {
     this.h *= m
     this.setViewbox()
     this.eventListeners.resize?.forEach((listener) => listener(this))
+  }
+
+  public contains([x, y]: Vec): boolean {
+    return !(x < this.left || y < this.top || x > this.right || y > this.bottom)
   }
 
   public intersects(polygon: Polygon): boolean {

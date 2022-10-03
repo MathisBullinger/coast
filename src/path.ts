@@ -1,69 +1,159 @@
-import * as vec from './vec'
 import type { Vec } from './vec'
 import type ViewPort from './viewport'
+
+class Segment {
+  private readonly points: [Vec, Vec, Vec]
+  private children?: [Segment, Segment]
+  private wasEntirelyVisile = false
+  private segmentations = 0
+  private pathLeft = ''
+  private pathRight = ''
+  public pathD = ''
+
+  constructor(
+    readonly start: Vec,
+    readonly end: Vec,
+    private readonly viewport: ViewPort,
+    private readonly interFun: InterpolationFunction,
+    private readonly lvl = 0
+  ) {
+    this.points = [start, interFun(start, end, lvl), end]
+    this.pathD = this.getOwnPath()
+  }
+
+  public segment(lvl: number): boolean {
+    const isEntirelyVisible = this.isEntirelyVisible()
+    const wasEntirelyVisile = this.wasEntirelyVisile
+    this.wasEntirelyVisile = isEntirelyVisible
+
+    if (isEntirelyVisible && wasEntirelyVisile && this.segmentations === lvl) {
+      return false
+    }
+
+    this.segmentations = lvl
+
+    if (lvl <= 0 || !this.isVisible()) {
+      if (this.children) {
+        delete this.children
+        this.pathLeft = this.pathRight = ''
+        this.pathD = this.getOwnPath()
+        return true
+      }
+      return false
+    }
+
+    let hasChanged = false
+
+    if (!this.children) {
+      this.children = [
+        new Segment(
+          this.points[0],
+          this.points[1],
+          this.viewport,
+          this.interFun,
+          this.lvl + 1
+        ),
+        new Segment(
+          this.points[1],
+          this.points[2],
+          this.viewport,
+          this.interFun,
+          this.lvl + 1
+        ),
+      ]
+      this.pathLeft = this.children[0].pathD
+      this.pathRight = this.children[1].pathD
+      hasChanged = true
+    }
+
+    for (let i = 0; i < this.children.length; i++) {
+      if (this.children[i].segment(lvl - 1)) {
+        this[i ? 'pathRight' : 'pathLeft'] = this.children[i].pathD
+        hasChanged = true
+      }
+    }
+
+    if (hasChanged) {
+      this.pathD = this.pathLeft + this.pathRight
+      if (this.lvl === 0)
+        this.pathD = `M ${this.points[0][0]} ${this.points[0][1]}` + this.pathD
+    }
+
+    return hasChanged
+  }
+
+  private isVisible() {
+    return this.viewport.intersects(this.points)
+  }
+
+  private isEntirelyVisible() {
+    for (const point of this.points) {
+      if (!this.viewport.contains(point)) return false
+    }
+    return true
+  }
+
+  private getOwnPath() {
+    let path = ` L ${this.points[2][0]} ${this.points[2][1]}`
+    if (this.lvl === 0) {
+      path = `M ${this.points[0][0]} ${this.points[0][1]}` + path
+    }
+    return path
+  }
+}
 
 type Opts = {
   svgs: SVGElement[]
   viewport: ViewPort
-  points: Vec[]
-  interpolationFunction: (a: Vec, b: Vec, lvl: number) => Vec
-  segmentLevels?: number
+  start: Vec
+  end: Vec
+  interpolationFunction: InterpolationFunction
   showMarkers?: boolean
-  autoSegment?: boolean
 }
+
+type InterpolationFunction = (a: Vec, b: Vec, lvl: number) => Vec
 
 export default class Path {
   private readonly svgPaths: SVGPathElement[] = []
 
-  private readonly interpolationFunction: Opts['interpolationFunction']
   private readonly viewport: Opts['viewport']
-  private coords: { stringIndex: number; x: number; y: number }[] = []
-  private svgD = ''
   private initialVmin: number
-  private readonly initialSegmentCount: number
+
+  private root: Segment
 
   constructor({
     svgs,
     viewport,
-    points,
+    start,
+    end,
     interpolationFunction,
-    segmentLevels = 1,
     showMarkers = false,
-    autoSegment = true,
   }: Opts) {
-    this.interpolationFunction = interpolationFunction
     this.viewport = viewport
     this.initialVmin = viewport.vMin
 
-    const { svgD, coords } = Path.getSvgPath(points)
-    this.coords = coords
-    this.svgD = svgD
+    this.root = new Segment(start, end, viewport, interpolationFunction)
 
     for (let i = 0; i < svgs.length; i++) {
       const path = this.createSvgPath(showMarkers)
-      path.setAttribute('d', svgD)
       svgs[i].appendChild(path)
       this.svgPaths.push(path)
     }
 
-    for (let i = 1; i < segmentLevels; i++) this.addSegments()
-    this.initialSegmentCount = this.coords.length - 1
+    this.setSvgD()
 
-    if (autoSegment) {
-      this.viewport.addEventListener('resize', ({ vMin }) => {
-        const lvl = Math.floor(
-          Math.log2(2 * (this.initialVmin / viewport.vMin))
-        )
-        const act = Math.log2(
-          2 * ((this.coords.length - 1) / this.initialSegmentCount)
-        )
-        if (lvl > act) this.addSegments()
-      })
-    }
-
-    this.viewport.addEventListener('pan', this.checkInViewport.bind(this))
-
+    this.fillDetail = this.fillDetail.bind(this)
+    this.viewport.addEventListener('pan', this.fillDetail)
+    this.viewport.addEventListener('resize', this.fillDetail)
     this.fillDetail()
+  }
+
+  private setSvgD() {
+    const svgD = this.root.pathD
+    console.log(svgD.length)
+    for (const path of this.svgPaths) {
+      path.setAttribute('d', svgD)
+    }
   }
 
   private createSvgPath(showMarkers = false) {
@@ -80,116 +170,12 @@ export default class Path {
     return path
   }
 
-  private checkInViewport() {
-    const checkExpansion = (a: Vec, b: Vec, expandClockwise: boolean) => {
-      const dh = vec.mul(vec.sub(b, a), 0.5)
-      const c = vec.add(
-        vec.add(a, dh),
-        vec.rotate90Deg(vec.mul(dh, 0.5), expandClockwise)
-      )
-      const expansionArea = [a, b, c]
-      return this.viewport.intersects(expansionArea)
-    }
-
-    const testRec = (
-      first = 0,
-      last = this.coords.length - 1,
-      clockwise = false
-    ) => {
-      const collides = checkExpansion(
-        this.getCoord(first),
-        this.getCoord(last),
-        clockwise
-      )
-
-      // console.log(collides)
-      if (!collides) return false
-
-      console.log('collide', first, last)
-    }
-
-    testRec()
-  }
-
   private fillDetail() {
-    // const lvl = Math.floor(
-    //   Math.log2(2 * (this.initialVmin / this.viewport.vMin))
-    // )
-    // const segments = 2 ** (lvl + 4)
-    // console.log(segments)
-  }
+    const maxLvl =
+      Math.floor(Math.log2(2 * (this.initialVmin / this.viewport.vMin))) * 6
 
-  private getCoord(i: number): Vec {
-    return [this.coords[i].x, this.coords[i].y]
-  }
-
-  public addSegments() {
-    const lvl = Math.log2(this.coords.length - 1)
-
-    for (let i = 0; i < this.length - 1; i += 2) {
-      this.insert(
-        i + 1,
-        this.interpolationFunction(this.at(i), this.at(i + 1), lvl)
-      )
+    if (this.root.segment(maxLvl)) {
+      this.setSvgD()
     }
-
-    console.log(lvl + 1, this.coords.length)
-  }
-
-  public get length() {
-    return this.coords.length
-  }
-
-  public at(index: number): Vec {
-    return [this.coords[index].x, this.coords[index].y]
-  }
-
-  public insert(index: number, [x, y]: Vec) {
-    const svgDSeg = `${index ? 'L' : 'M'} ${x} ${y} `
-
-    if (index >= this.coords.length) {
-      this.coords.push({
-        x,
-        y,
-        stringIndex: this.svgD.length,
-      })
-      this.svgD = `${svgDSeg}L ${this.svgD.slice(2)}`
-    } else if (index === 0) {
-      this.coords.unshift({ x, y, stringIndex: 0 })
-      this.svgD += svgDSeg
-    } else {
-      const stringIndex = this.coords[index].stringIndex
-      this.coords = [
-        ...this.coords.slice(0, index),
-        { x, y, stringIndex },
-        ...this.coords.slice(index),
-      ]
-      this.svgD =
-        this.svgD.slice(0, stringIndex) + svgDSeg + this.svgD.slice(stringIndex)
-    }
-
-    const svgD = this.svgD
-    for (const path of this.svgPaths) path.setAttribute('d', svgD)
-
-    for (let i = index + 1; i < this.coords.length; i++) {
-      this.coords[i].stringIndex += svgDSeg.length
-    }
-  }
-
-  private static getSvgPath(points: Vec[]) {
-    let svgD = ''
-    let coords: Path['coords'] = []
-    if (!points.length) return { svgD, coords }
-
-    svgD = `M ${points[0][0]} ${points[0][1]} `
-    coords = [{ x: points[0][0], y: points[0][1], stringIndex: 0 }]
-
-    for (let i = 1; i < points.length; i++) {
-      const [x, y] = points[i]
-      coords.push({ x, y, stringIndex: svgD.length })
-      svgD += `L ${x} ${y} `
-    }
-
-    return { svgD, coords }
   }
 }

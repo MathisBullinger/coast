@@ -7,19 +7,16 @@ const svg = document.querySelector('svg')!
 
 const initialVmin = 100000
 const viewport = new Viewport(svg, initialVmin)
-
-const random = mulberry32(1)
-
 const svg2 = document.getElementById('svg2') as unknown as SVGElement
 svg2.setAttribute('viewBox', viewport.viewBox)
 
-const path = new Path({
+const random = mulberry32(1)
+
+new Path({
   svgs: [svg, svg2],
   viewport,
-  points: [
-    [-viewport.vMin / 2, 0],
-    [viewport.vMin / 2, 0],
-  ],
+  start: [-viewport.vMin / 2, 0],
+  end: [viewport.vMin / 2, 0],
   interpolationFunction: (a, b, lvl) => {
     const half = vec.mul(vec.sub(b, a), 0.5)
     const c = vec.add(a, half)
@@ -30,11 +27,8 @@ const path = new Path({
 
     return vec.add(c, offset)
   },
-  autoSegment: false,
-  showMarkers: true,
+  showMarkers: false,
 })
-
-svg.addEventListener('click', () => path.addSegments())
 
 svg.addEventListener('wheel', (e) => {
   e.preventDefault()
